@@ -4,7 +4,7 @@ $inventoryExists = Test-Path -Path ".\inventory.json"
 ## Initialize Arrays
 
 $ips = [System.Collections.ArrayList]@()
-$hostnames = @()
+$hostnames = [System.Collections.ArrayList]@()
 $osVersions = @()
 $online = [System.Collections.ArrayList]@()
 $offline = [System.Collections.ArrayList]@()
@@ -37,7 +37,7 @@ if($inventoryExists -eq $false){
     } else {
         foreach($newHost in $newInventory){
             if([ipaddress]::TryParse($newHost, [ref]$null)){
-                $ips.Add($newHost)
+                $ips.Add($newHost) | Out-Null
             } else{
                 Write-Host $newHost "is not a valid IP-Adress."
             }
@@ -108,12 +108,58 @@ if($newInventory){
 }
 
 
+## Get Hostname via DNS Resolution Function
+
+function Get-HostName {
+    param(
+        [string[]]$ip
+    )
+
+    $resolved = @()
+
+    foreach($address in $ip){
+        try {
+            $hostname = [System.Net.Dns]::GetHostEntry($address).HostName
+            $resolved += [PSCustomObject]@{
+                IP       = $address
+                Hostname = $hostname
+            }
+            Write-Host "$address was resolved to $hostname."
+            $addedHostname = $results.Hostname
+            try {
+            $hostnames.Add($results.Hostname) | Out-Null
+            Write-Host "$hostname was added to Inventory"
+                }
+            catch {
+            Write-Host "$results could not be added."
+}
+
+        }
+        catch {
+            Write-Host "No DNS record was found for $address."
+        }
+    }
+
+    return $resolved
+}
+
+
+
+## Check Host Name
+
+foreach($ip in $newInventory){
+    Get-HostName -ip $ip | Out-Null
+}
+
+
+
 ## Inventory Object
 
 $inventoryObject.IPs       = $ips | Select-Object -Unique
 $inventoryObject.Online    = $online
 $inventoryObject.Offline   = $offline      
 $inventoryObject.LastUpdated = Get-Date
+$inventoryObject.Hostname   = $hostnames
 
 $inventoryObject |
     ConvertTo-Json -Depth 5 |
